@@ -1,0 +1,38 @@
+rules_version = '2';
+// Правила доступа к базе Dex Shop.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isAdmin() {
+      return request.auth != null && request.auth.token.email == 'kaithelewa@gmail.com';
+    }
+    function str(v, max) { return v is string && v.size() <= max; }
+
+    // Контакты и цены: читают все, меняет только админ
+    match /config/{docId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Фото товаров: читают все, меняет только админ
+    match /photos/{photoId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Заказы: создать может любой покупатель, видит и меняет только админ
+    match /orders/{orderId} {
+      allow create: if request.resource.data.keys().hasOnly(['num','items','total','name','phone','city','delivery','addr','pay','wrap','note','status','createdAt'])
+        && request.resource.data.status == 'new'
+        && request.resource.data.createdAt == request.time
+        && str(request.resource.data.num, 20)
+        && str(request.resource.data.name, 100) && request.resource.data.name.size() > 0
+        && str(request.resource.data.phone, 40) && request.resource.data.phone.size() > 0
+        && request.resource.data.items is list && request.resource.data.items.size() > 0 && request.resource.data.items.size() <= 30
+        && request.resource.data.total is number
+        && str(request.resource.data.get('addr', ''), 300)
+        && str(request.resource.data.get('note', ''), 500);
+      allow read, update, delete: if isAdmin();
+    }
+  }
+}
